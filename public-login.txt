@@ -1,0 +1,220 @@
+public/login.html
+
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+
+    <meta charset="UTF-8">
+
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
+
+    <title>Login | DormShopper</title>
+
+    <link rel="stylesheet" href="style.css">
+
+</head>
+
+<body>
+
+<header class="navbar">
+
+    <div class="logo">
+        DormShopper
+    </div>
+
+    <nav>
+
+        <a href="/">
+            Home
+        </a>
+
+        <a href="/browse">
+            Browse
+        </a>
+
+        <a href="/post">
+            Post Item
+        </a>
+
+        <span id="authLinks">
+            <a href="/login" class="active">
+                Login
+            </a>
+        </span>
+
+    </nav>
+
+</header>
+
+
+<main class="page-content">
+
+    <div class="form-container">
+
+        <h1>Login</h1>
+
+        <p>
+            Login to your DormShopper account.
+        </p>
+
+
+        <form id="loginForm">
+
+            <label for="email">
+                UCCS Email
+            </label>
+
+            <input
+                type="email"
+                id="email"
+                required
+                placeholder="you@uccs.edu"
+            >
+
+
+            <label for="password">
+                Password
+            </label>
+
+            <input
+                type="password"
+                id="password"
+                required
+            >
+
+
+            <button
+                type="submit"
+                class="button"
+            >
+                Login
+            </button>
+
+        </form>
+
+
+        <p
+            id="message"
+            class="form-message"
+        ></p>
+
+
+        <p class="form-footer">
+
+            Don't have an account?
+
+            <a href="/register">
+                Register here
+            </a>
+
+        </p>
+
+    </div>
+
+</main>
+
+
+<script>
+
+document
+    .getElementById("loginForm")
+    .addEventListener("submit", async function(event) {
+
+        event.preventDefault();
+
+
+        const email =
+            document.getElementById(
+                "email"
+            ).value;
+
+
+        const password =
+            document.getElementById(
+                "password"
+            ).value;
+
+
+        const message =
+            document.getElementById(
+                "message"
+            );
+
+
+        try {
+
+            const response =
+                await fetch(
+                    "/api/login",
+                    {
+                        method: "POST",
+
+                        headers: {
+                            "Content-Type":
+                                "application/json"
+                        },
+
+                        body:
+                            JSON.stringify({
+                                email,
+                                password
+                            })
+                    }
+                );
+
+
+            const data =
+                await response.json();
+
+
+            if (!response.ok) {
+
+                message.textContent =
+                    data.message ||
+                    "Login failed.";
+
+                message.className =
+                    "form-message error";
+
+                return;
+            }
+
+
+            message.textContent =
+                "Login successful!";
+
+
+            message.className =
+                "form-message success";
+
+
+            setTimeout(() => {
+
+                window.location.href =
+                    "/browse";
+
+            }, 500);
+
+
+        } catch (error) {
+
+            console.error(error);
+
+            message.textContent =
+                "Unable to connect to server.";
+
+            message.className =
+                "form-message error";
+
+        }
+
+    });
+
+</script>
+
+</body>
+</html>

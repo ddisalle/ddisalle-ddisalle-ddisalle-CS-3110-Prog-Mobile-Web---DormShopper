@@ -1,0 +1,106 @@
+public/index.html
+
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>DormShopper | Your Campus ~ Your Market</title>
+
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+
+<header class="navbar">
+
+    <div class="logo">
+        DormShopper
+    </div>
+
+    <nav>
+        <a href="/" class="active">Home</a>
+        <a href="/browse">Browse</a>
+        <a href="/post">Post Item</a>
+
+        <span id="authLinks">
+            <a href="/login">Login</a>
+        </span>
+    </nav>
+
+</header>
+
+
+<main class="page-content">
+
+    <section class="hero">
+
+        <h1>Welcome to DormShopper</h1>
+
+        <p class="tagline">
+            Your Campus ~ Your Market
+        </p>
+
+        <p>
+            DormShopper is a campus-exclusive marketplace designed
+            for UCCS students. Buy and sell items within your campus
+            community without having to search through large public
+            marketplaces.
+        </p>
+
+        <div class="hero-buttons">
+
+            <a href="/browse" class="button">
+                Browse Items
+            </a>
+
+            <a href="/post" class="button secondary-button">
+                Sell an Item
+            </a>
+
+        </div>
+
+    </section>
+
+
+    <section class="info-section">
+
+        <h2>How DormShopper Works</h2>
+
+        <div class="info-grid">
+
+            <div class="info-card">
+                <h3>1. Create an Account</h3>
+                <p>
+                    Register using your UCCS student email address.
+                </p>
+            </div>
+
+            <div class="info-card">
+                <h3>2. Find an Item</h3>
+                <p>
+                    Browse items being sold by members of the
+                    campus community.
+                </p>
+            </div>
+
+            <div class="info-card">
+                <h3>3. Sell Your Items</h3>
+                <p>
+                    Post items you no longer need and connect
+                    with other students.
+                </p>
+            </div>
+
+        </div>
+
+    </section>
+
+</main>
+
+<script src="auth.js"></script>
+
+</body>
+</html>

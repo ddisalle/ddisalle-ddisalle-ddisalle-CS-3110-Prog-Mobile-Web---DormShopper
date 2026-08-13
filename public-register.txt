@@ -1,0 +1,259 @@
+public/register.html
+
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+
+    <meta charset="UTF-8">
+
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
+
+    <title>Register | DormShopper</title>
+
+    <link rel="stylesheet" href="style.css">
+
+</head>
+
+<body>
+
+<header class="navbar">
+
+    <div class="logo">
+        DormShopper
+    </div>
+
+    <nav>
+
+        <a href="/">
+            Home
+        </a>
+
+        <a href="/browse">
+            Browse
+        </a>
+
+        <a href="/post">
+            Post Item
+        </a>
+
+        <span id="authLinks">
+            <a href="/login">
+                Login
+            </a>
+        </span>
+
+    </nav>
+
+</header>
+
+
+<main class="page-content">
+
+    <div class="form-container">
+
+        <h1>Create an Account</h1>
+
+        <p>
+            DormShopper is exclusively for UCCS students.
+        </p>
+
+
+        <form id="registerForm">
+
+            <label for="username">
+                Username
+            </label>
+
+            <input
+                type="text"
+                id="username"
+                required
+            >
+
+
+            <label for="email">
+                UCCS Email
+            </label>
+
+            <input
+                type="email"
+                id="email"
+                placeholder="you@uccs.edu"
+                required
+            >
+
+
+            <label for="password">
+                Password
+            </label>
+
+            <input
+                type="password"
+                id="password"
+                required
+            >
+
+
+            <button
+                type="submit"
+                class="button"
+            >
+                Create Account
+            </button>
+
+        </form>
+
+
+        <p
+            id="message"
+            class="form-message"
+        ></p>
+
+
+        <p class="form-footer">
+
+            Already have an account?
+
+            <a href="/login">
+                Login here
+            </a>
+
+        </p>
+
+    </div>
+
+</main>
+
+
+<script>
+
+document
+    .getElementById("registerForm")
+    .addEventListener("submit", async function(event) {
+
+        event.preventDefault();
+
+
+        const username =
+            document.getElementById(
+                "username"
+            ).value;
+
+
+        const email =
+            document.getElementById(
+                "email"
+            ).value;
+
+
+        const password =
+            document.getElementById(
+                "password"
+            ).value;
+
+
+        const message =
+            document.getElementById(
+                "message"
+            );
+
+
+        if (
+            !email
+                .toLowerCase()
+                .endsWith("@uccs.edu")
+        ) {
+
+            message.textContent =
+                "You must use a UCCS @uccs.edu email address.";
+
+            message.className =
+                "form-message error";
+
+            return;
+        }
+
+
+        try {
+
+            const response =
+                await fetch(
+                    "/api/register",
+                    {
+                        method: "POST",
+
+                        headers: {
+                            "Content-Type":
+                                "application/json"
+                        },
+
+                        body:
+                            JSON.stringify({
+                                username,
+                                email,
+                                password
+                            })
+                    }
+                );
+
+
+            const data =
+                await response.json();
+
+
+            if (!response.ok) {
+
+                message.textContent =
+                    data.message ||
+                    "Registration failed.";
+
+                message.className =
+                    "form-message error";
+
+                return;
+            }
+
+
+            message.textContent =
+                "Account created successfully! Redirecting to login...";
+
+
+            message.className =
+                "form-message success";
+
+
+            document
+                .getElementById("registerForm")
+                .reset();
+
+
+            setTimeout(() => {
+
+                window.location.href =
+                    "/login";
+
+            }, 1200);
+
+
+        } catch (error) {
+
+            console.error(error);
+
+            message.textContent =
+                "Unable to connect to server.";
+
+            message.className =
+                "form-message error";
+
+        }
+
+    });
+
+</script>
+
+</body>
+</html>

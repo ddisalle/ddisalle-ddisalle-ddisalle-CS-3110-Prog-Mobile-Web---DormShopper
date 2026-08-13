@@ -1,0 +1,605 @@
+server.js
+
+const express = require("express");
+const path = require("path");
+const sqlite3 = require("sqlite3").verbose();
+const bcrypt = require("bcrypt");
+const session = require("express-session");
+
+const app = express();
+const PORT = 3000;
+
+const publicDir = path.join(__dirname, "public");
+const db = new sqlite3.Database("./app.db");
+
+// Middleware
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+
+app.use(
+    session({
+        secret: "dormshopper-secret-key-change-this",
+        resave: false,
+        saveUninitialized: false,
+        cookie: {
+            secure: false,
+            maxAge: 24 * 60 * 60 * 1000
+        }
+    })
+);
+
+app.use(express.static(publicDir));
+
+
+// ============================================================
+// DATABASE SETUP
+// ============================================================
+
+db.serialize(() => {
+
+    db.run(`
+        CREATE TABLE IF NOT EXISTS users (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            username TEXT UNIQUE NOT NULL,
+            email TEXT UNIQUE NOT NULL,
+            password TEXT NOT NULL,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        )
+    `);
+
+    db.run(`
+        CREATE TABLE IF NOT EXISTS listings (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            title TEXT NOT NULL,
+            description TEXT,
+            price REAL NOT NULL,
+            category TEXT,
+            image TEXT,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY(user_id) REFERENCES users(id)
+        )
+    `);
+
+});
+
+
+// ============================================================
+// PAGE ROUTES
+// ============================================================
+
+app.get("/", (req, res) => {
+    res.sendFile(path.join(publicDir, "index.html"));
+});
+
+app.get("/browse", (req, res) => {
+    res.sendFile(path.join(publicDir, "browse.html"));
+});
+
+app.get("/post", (req, res) => {
+    res.sendFile(path.join(publicDir, "post.html"));
+});
+
+app.get("/login", (req, res) => {
+    res.sendFile(path.join(publicDir, "login.html"));
+});
+
+app.get("/register", (req, res) => {
+    res.sendFile(path.join(publicDir, "register.html"));
+});
+
+
+// ============================================================
+// AUTHENTICATION
+// ============================================================
+
+// Check current logged-in user
+app.get("/api/me", (req, res) => {
+
+    if (!req.session.user) {
+        return res.json({
+            loggedIn: false
+        });
+    }
+
+    res.json({
+        loggedIn: true,
+        user: req.session.user
+    });
+});
+
+
+// REGISTER
+app.post("/api/register", async (req, res) => {
+
+    const { username, email, password } = req.body;
+
+    if (!username || !email || !password) {
+        return res.status(400).json({
+            success: false,
+            message: "Please fill in all fields."
+        });
+    }
+
+    // UCCS-only registration
+    if (!email.toLowerCase().endsWith("@uccs.edu")) {
+        return res.status(400).json({
+            success: false,
+            message: "You must use a UCCS @uccs.edu email address."
+        });
+    }
+
+    try {
+
+        const hashedPassword = await bcrypt.hash(password, 10);
+
+        db.run(
+            `
+            INSERT INTO users (username, email, password)
+            VALUES (?, ?, ?)
+            `,
+            [username, email.toLowerCase(), hashedPassword],
+            function (err) {
+
+                if (err) {
+
+                    if (err.message.includes("UNIQUE")) {
+                        return res.status(400).json({
+                            success: false,
+                            message: "Username or email already exists."
+                        });
+                    }
+
+                    console.error(err);
+
+                    return res.status(500).json({
+                        success: false,
+                        message: "Unable to create account."
+                    });
+                }
+
+                res.json({
+                    success: true,
+                    message: "Account created successfully."
+                });
+
+            }
+        );
+
+    } catch (error) {
+
+        console.error(error);
+
+        res.status(500).json({
+            success: false,
+            message: "Registration failed."
+        });
+    }
+});
+
+
+// LOGIN
+app.post("/api/login", (req, res) => {
+
+    const { email, password } = req.body;
+
+    if (!email || !password) {
+        return res.status(400).json({
+            success: false,
+            message: "Please enter your email and password."
+        });
+    }
+
+    db.get(
+        `
+        SELECT *
+        FROM users
+        WHERE email = ?
+        `,
+        [email.toLowerCase()],
+        async (err, user) => {
+
+            if (err) {
+                console.error(err);
+
+                return res.status(500).json({
+                    success: false,
+                    message: "Database error."
+                });
+            }
+
+            if (!user) {
+                return res.status(401).json({
+                    success: false,
+                    message: "Invalid email or password."
+                });
+            }
+
+            const passwordMatch = await bcrypt.compare(
+                password,
+                user.password
+            );
+
+            if (!passwordMatch) {
+                return res.status(401).json({
+                    success: false,
+                    message: "Invalid email or password."
+                });
+            }
+
+            req.session.user = {
+                id: user.id,
+                username: user.username,
+                email: user.email
+            };
+
+            res.json({
+                success: true,
+                message: "Login successful.",
+                user: req.session.user
+            });
+
+        }
+    );
+});
+
+
+// LOGOUT
+app.post("/api/logout", (req, res) => {
+
+    req.session.destroy((err) => {
+
+        if (err) {
+            return res.status(500).json({
+                success: false,
+                message: "Unable to log out."
+            });
+        }
+
+        res.json({
+            success: true
+        });
+
+    });
+});
+
+
+// ============================================================
+// LISTINGS
+// ============================================================
+
+// GET ALL LISTINGS
+app.get("/api/listings", (req, res) => {
+
+    db.all(
+        `
+        SELECT
+            listings.id,
+            listings.title,
+            listings.description,
+            listings.price,
+            listings.category,
+            listings.image,
+            listings.created_at,
+            users.username
+        FROM listings
+        JOIN users
+            ON listings.user_id = users.id
+        ORDER BY listings.created_at DESC
+        `,
+        [],
+        (err, rows) => {
+
+            if (err) {
+                console.error(err);
+
+                return res.status(500).json({
+                    success: false,
+                    message: "Unable to load listings."
+                });
+            }
+
+            res.json(rows);
+        }
+    );
+});
+
+
+// GET ONE LISTING
+app.get("/api/listings/:id", (req, res) => {
+
+    const id = req.params.id;
+
+    db.get(
+        `
+        SELECT
+            listings.*,
+            users.username
+        FROM listings
+        JOIN users
+            ON listings.user_id = users.id
+        WHERE listings.id = ?
+        `,
+        [id],
+        (err, listing) => {
+
+            if (err) {
+                console.error(err);
+
+                return res.status(500).json({
+                    success: false,
+                    message: "Database error."
+                });
+            }
+
+            if (!listing) {
+                return res.status(404).json({
+                    success: false,
+                    message: "Listing not found."
+                });
+            }
+
+            res.json(listing);
+        }
+    );
+});
+
+
+// CREATE LISTING
+app.post("/api/listings", (req, res) => {
+
+    if (!req.session.user) {
+        return res.status(401).json({
+            success: false,
+            message: "You must be logged in."
+        });
+    }
+
+    const {
+        title,
+        description,
+        price,
+        category,
+        image
+    } = req.body;
+
+    if (!title || price === undefined || price === "") {
+        return res.status(400).json({
+            success: false,
+            message: "Title and price are required."
+        });
+    }
+
+    db.run(
+        `
+        INSERT INTO listings
+        (
+            user_id,
+            title,
+            description,
+            price,
+            category,
+            image
+        )
+        VALUES (?, ?, ?, ?, ?, ?)
+        `,
+        [
+            req.session.user.id,
+            title,
+            description || "",
+            Number(price),
+            category || "",
+            image || ""
+        ],
+        function (err) {
+
+            if (err) {
+                console.error(err);
+
+                return res.status(500).json({
+                    success: false,
+                    message: "Unable to create listing."
+                });
+            }
+
+            res.json({
+                success: true,
+                listingId: this.lastID
+            });
+
+        }
+    );
+});
+
+
+// ============================================================
+// UPDATE LISTING
+// ============================================================
+
+app.put("/api/listings/:id", (req, res) => {
+
+    if (!req.session.user) {
+        return res.status(401).json({
+            success: false,
+            message: "You must be logged in."
+        });
+    }
+
+    const id = req.params.id;
+
+    const {
+        title,
+        description,
+        price,
+        category,
+        image
+    } = req.body;
+
+    db.get(
+        `
+        SELECT *
+        FROM listings
+        WHERE id = ?
+        `,
+        [id],
+        (err, listing) => {
+
+            if (err) {
+                console.error(err);
+
+                return res.status(500).json({
+                    success: false,
+                    message: "Database error."
+                });
+            }
+
+            if (!listing) {
+                return res.status(404).json({
+                    success: false,
+                    message: "Listing not found."
+                });
+            }
+
+            if (listing.user_id !== req.session.user.id) {
+                return res.status(403).json({
+                    success: false,
+                    message: "You can only edit your own listings."
+                });
+            }
+
+            db.run(
+                `
+                UPDATE listings
+                SET
+                    title = ?,
+                    description = ?,
+                    price = ?,
+                    category = ?,
+                    image = ?
+                WHERE id = ?
+                `,
+                [
+                    title,
+                    description || "",
+                    Number(price),
+                    category || "",
+                    image || "",
+                    id
+                ],
+                function (updateErr) {
+
+                    if (updateErr) {
+                        console.error(updateErr);
+
+                        return res.status(500).json({
+                            success: false,
+                            message: "Unable to update listing."
+                        });
+                    }
+
+                    res.json({
+                        success: true,
+                        message: "Listing updated successfully."
+                    });
+
+                }
+            );
+
+        }
+    );
+});
+
+
+// ============================================================
+// DELETE LISTING
+// ============================================================
+
+app.delete("/api/listings/:id", (req, res) => {
+
+    if (!req.session.user) {
+        return res.status(401).json({
+            success: false,
+            message: "You must be logged in."
+        });
+    }
+
+    const id = req.params.id;
+
+    db.get(
+        `
+        SELECT *
+        FROM listings
+        WHERE id = ?
+        `,
+        [id],
+        (err, listing) => {
+
+            if (err) {
+                console.error(err);
+
+                return res.status(500).json({
+                    success: false,
+                    message: "Database error."
+                });
+            }
+
+            if (!listing) {
+                return res.status(404).json({
+                    success: false,
+                    message: "Listing not found."
+                });
+            }
+
+            if (listing.user_id !== req.session.user.id) {
+                return res.status(403).json({
+                    success: false,
+                    message: "You can only delete your own listings."
+                });
+            }
+
+            db.run(
+                `
+                DELETE FROM listings
+                WHERE id = ?
+                `,
+                [id],
+                (deleteErr) => {
+
+                    if (deleteErr) {
+                        console.error(deleteErr);
+
+                        return res.status(500).json({
+                            success: false,
+                            message: "Unable to delete listing."
+                        });
+                    }
+
+                    res.json({
+                        success: true,
+                        message: "Listing deleted successfully."
+                    });
+
+                }
+            );
+
+        }
+    );
+});
+
+
+// ============================================================
+// START SERVER
+// ============================================================
+
+app.listen(PORT, "0.0.0.0", () => {
+
+    console.log(`
+=========================================
+        DormShopper Server
+=========================================
+Server running on port ${PORT}
+http://localhost:${PORT}
+=========================================
+`);
+
+});
